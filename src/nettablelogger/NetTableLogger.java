@@ -15,7 +15,6 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.rmi.UnknownHostException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -30,6 +29,9 @@ public class NetTableLogger implements ITableListener {
 
     private NetworkTable table;
     private BufferedWriter outputFile = null;
+
+    private final DateFormat TimeStampFormat = new SimpleDateFormat("MM/dd/yyyy\tHH:mm:ss.SSS");
+    private final String FileHeader = "Date\tTime\tKey\tValue";
 
     /**
      * @param args the command line arguments
@@ -65,10 +67,14 @@ public class NetTableLogger implements ITableListener {
 
         try {
             outputFile = Files.newBufferedWriter(path, Charset.defaultCharset(), StandardOpenOption.CREATE);
+            outputFile.write(FileHeader);
+            outputFile.newLine();
 
             NetworkTable.setClientMode();
-            NetworkTable.setIPAddress(ipAddress.toString());
+            String address = ipAddress.toString().substring(1);
+            NetworkTable.setIPAddress(address);
             table = NetworkTable.getTable(tableName);
+            table.putBoolean("RecordData", false);
             table.addTableListener(this);
         }
         catch (IOException ex) {
@@ -90,17 +96,16 @@ public class NetTableLogger implements ITableListener {
             return;
         }
 
+        // Flush the file every second
         while (true) {
             try {
-                Thread.sleep(500);
+                try {
+                    outputFile.flush();
+                }
+                catch (IOException ex) {
+                }
 
-//                try {
-//                    outputFile.write("Testing");
-//                    outputFile.newLine();
-//                    outputFile.flush();
-//                }
-//                catch (IOException ex) {
-//                }
+                Thread.sleep(1000);
             }
             catch (InterruptedException ex) {
                 Logger.getLogger(NetTableLogger.class.getName()).log(Level.SEVERE, null, ex);
@@ -109,12 +114,15 @@ public class NetTableLogger implements ITableListener {
     }
 
     @Override
-    public void valueChanged(ITable itable, String string, Object o, boolean updated) {
+    public void valueChanged(ITable itable, String string, Object o, boolean firstTime) {
 
-        System.out.println("String: " + string + " Value: " + o + "new: " + updated);
+        String timeStamp = TimeStampFormat.format(new Date());
 
-        if (updated) {
-
+        try {
+            outputFile.write(timeStamp + "\t" + string + "\t" + o);
+            outputFile.newLine();
+        }
+        catch (IOException ex) {
         }
     }
 }
